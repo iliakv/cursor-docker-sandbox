@@ -1,11 +1,49 @@
 #!/bin/bash
 set -euo pipefail
 
-mkdir -p /run/dbus
-chmod 755 /run /run/dbus
-if ! pgrep -x dbus-daemon >/dev/null 2>&1; then
-  dbus-daemon --system --address=unix:path=/run/dbus/system_bus_socket --fork
+# Runtime identity from start.sh
+TARGET_UID="${TARGET_UID:-1000}"
+TARGET_GID="${TARGET_GID:-1000}"
+
+# Allow any uid to traverse home and execute launcher
+chmod a+rx /home/cursoruser || true
+chmod a+rx /home/cursoruser/run_cursor.sh || true
+
+# Ensure machine id for D-Bus
+if [ ! -s /etc/machine-id ]; then
+  if command -v dbus-uuidgen >/dev/null 2>&1; then
+    dbus-uuidgen > /etc/machine-id
+  else
+    cat /proc/sys/kernel/random/uuid | tr -d '-' > /etc/machine-id
+  fi
+fi
+if [ ! -e /var/lib/dbus/machine-id ]; then
+  mkdir -p /var/lib/dbus
+  ln -sf /etc/machine-id /var/lib/dbus/machine-id
 fi
 
+# Provide NSS entries for arbitrary TARGET_UID and TARGET_GID
+if ! getent group "${TARGET_GID}" >/dev/null 2>&1; then
+  echo "xgroup:x:${TARGET_GID}:" >> /etc/group
+fi
+if ! getent passwd "${TARGET_UID}" >/dev/null 2>&1; then
+  echo "xuser:x:${TARGET_UID}:${TARGET_GID}:Runtime User:/home/cursoruser:/bin/bash" >> /etc/passwd
+fi
+
+
+# Ensure Firefox profile root is present and writable by runtime uid
+mkdir -p /home/cursoruser/.mozilla
+chown -R "${TARGET_UID}:${TARGET_GID}" /home/cursoruser/.mozilla
+
+# Start system D-Bus
+mkdir -p /run/dbus
+chmod 755 /run /run/dbus
+pgrep -x dbus-daemon >/dev/null 2>&1 || \
+  dbus-daemon --system --address=unix:path=/run/dbus/system_bus_socket --fork
+
+# Drop privileges and start
 export HOME=/home/cursoruser
-exec gosu 1000:1000 /home/cursoruser/run_cursor.sh
+exec gosu "${TARGET_UID}:${TARGET_GID}" /home/cursoruser/run_cursor.sh
+
+
+

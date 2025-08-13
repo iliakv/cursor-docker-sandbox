@@ -17,6 +17,7 @@ EXTRA_RW="
 /home/cursoruser/.cursor
 /home/cursoruser/.config
 /home/cursoruser/.cache
+/home/cursoruser/.mozilla
 "
 
 STAMP="perm_test_$$"

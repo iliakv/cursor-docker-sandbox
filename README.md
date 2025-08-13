@@ -1,139 +1,189 @@
 # Cursor AppImage in Docker with Controlled File System Access
 
-This setup runs the **Cursor** editor inside a Docker container with controlled read-only and read-write mounts, software OpenGL rendering, and D-Bus support.  
-It is **config-driven**, so you only need to edit `config.sh` to adjust paths and options for each user or environment.
+Run the **Cursor** editor inside a Docker container with controlled read only and read write mounts, software OpenGL, and D-Bus. The setup is **config driven**, edit `config.sh` only.
 
 ---
 
 ## 📂 Folder Structure
+
 ```
 .
-├── config.sh                         # Main configuration file (edit this only)
-├── build.sh                          # Build the Docker image
-├── start.sh                          # Start the container, apply mounts from config.sh
-├── download_latest_cursor_AppImage.sh# Fetch the latest Cursor AppImage from official source
-├── Dockerfile                        # Image definition
-├── entry.sh                          # Entrypoint (root → user)
-├── run_cursor.sh                     # Starts Cursor AppImage inside container
-├── verify_fs.sh                      # Verifies RO/RW/exec permissions inside container
-└── README.md                         # This file
+├── config.sh                          # Main configuration file
+├── build.sh                           # Build the Docker image
+├── start.sh                           # Start the container, apply mounts from config.sh
+├── download_latest_cursor_AppImage.sh # Fetch the latest Cursor AppImage
+├── Dockerfile                         # Image definition
+├── entry.sh                           # Entrypoint, root to runtime uid
+├── run_cursor.sh                      # Launches the Cursor AppImage
+├── verify_fs.sh                       # Verifies RO, RW, exec permissions
+└── README.md                          # This file
 ```
+
+---
+
+## ✅ Requirements
+
+* Docker installed on the host
+* X11 available on the host
+  Local desktop, `DISPLAY=":0"`
+  SSH with X forwarding, `ssh -Y`, `DISPLAY="localhost:N.0"`
+* Cursor AppImage present at `${APPIMAGE_HOST_DIR}/${APPIMAGE_FILENAME}`
+  Fetch via `./download_latest_cursor_AppImage.sh`
 
 ---
 
 ## ⚙️ Configuration
-Edit **`config.sh`** to set:
-- **IMAGE_NAME** – Docker image tag.
-- **APPIMAGE_HOST_DIR / APPIMAGE_FILENAME** – Where the Cursor AppImage lives on the host.
-- **RO_BINDS** – Host → container mappings mounted **read-only**.
-- **RW_BINDS** – Host → container mappings mounted **read-write**.
-- **PERSIST_BASE** – Host directory for persistent config/cache.
-- **CONTAINER_UID / CONTAINER_GID** – UID/GID inside container.
-- **USE_X11** – Set `1` to use X11 forwarding.
+
+Edit **`config.sh`** and review:
+
+* `IMAGE_NAME`
+* `APPIMAGE_HOST_DIR`, `APPIMAGE_FILENAME`, `APPIMAGE_CONTAINER_DIR`
+* `RO_BINDS` list of `host->container` read only paths
+* `RW_BINDS` list of `host->container` read write paths
+* `PERSIST_BASE` for `.config`, `.cache`, `.cursor`, `.mozilla`
+* `CONTAINER_UID`, `CONTAINER_GID` default `1000,1000`
+* `USE_X11` set to `1` to enable X11
+* `SHM_SIZE` default `1g`
 
 Example:
+
 ```bash
 RO_BINDS="
 /mnt/share->/mnt/share
-/home/ilia/cursor->/appimage
+${APPIMAGE_HOST_DIR}->/appimage
 "
-
 RW_BINDS="
-/mnt/share/ilia->/mnt/share/ilia
+/home/${USER}/monitor_cursor->/home/${USER}/monitor_cursor
 "
 ```
+
+Notes:
+
+* `config.sh` in this repo resolves the current user automatically and supports `/home/vault/users/<user>` layouts.
+* If you must elevate, prefer `sudo -E` so `DISPLAY` and `XAUTHORITY` are preserved.
 
 ---
 
 ## ⬇️ Download Latest Cursor AppImage
-Before building, get the newest Cursor AppImage into your configured folder:
+
 ```bash
 ./download_latest_cursor_AppImage.sh
 ```
-This will:
-- Fetch the latest stable Cursor AppImage
-- Save it to `${APPIMAGE_HOST_DIR}/${APPIMAGE_FILENAME}`
+
+Saves to `${APPIMAGE_HOST_DIR}/${APPIMAGE_FILENAME}`.
 
 ---
 
 ## 🔨 Build
-Run:
+
 ```bash
 ./build.sh
 ```
-This will:
-- Create persistent directories (`$PERSIST_BASE/config`, `cache`, `cursor`)
-- Build the Docker image with all dependencies installed
+
+Creates `${PERSIST_BASE}/{config,cache,cursor,mozilla}` and builds the image with X11, Mesa software GL, D-Bus, Firefox, FUSE.
 
 ---
 
-## 🚀 Start
-Run:
+## 🚀 Start, recommended flags for NFS and SSH
+
+Most reliable command on corporate and NFS setups:
+
+```bash
+./start.sh --as-owner --userns-host
+```
+
+What these flags do:
+
+* `--as-owner` runs the app as the owner uid,gid of the first RW bind, matching host permissions
+* `--userns-host` disables user namespace remapping so the kernel sees the same uid,gid over NFS
+
+Other useful flags:
+
+* `--clean` rotate `${PERSIST_BASE}` dirs to `.bak-<timestamp>`
+* `--grant-acl` apply `setfacl` for `CONTAINER_UID` on RW host dirs if the filesystem supports ACLs
+
+Examples:
+
 ```bash
 ./start.sh
+./start.sh --as-owner --userns-host
+./start.sh --clean --as-owner --userns-host
 ```
-This will:
-1. Generate RO/RW mounts from `config.sh`
-2. Mount them into the container
-3. Run **verify_fs.sh** to confirm permissions
-4. Launch Cursor AppImage
 
-### Optional Flags
-- **`--clean`**  
-  Moves persistent directories to a `.bak-<timestamp>` backup before starting fresh.
-  ```bash
-  ./start.sh --clean
-  ```
-- **`--grant-acl`**  
-  Grants container user (`CONTAINER_UID`) RWX permissions on host RW dirs **without changing ownership**. Requires `setfacl` on the host.
-  ```bash
-  ./start.sh --grant-acl
-  ```
+SSH X forwarding tips:
 
-You can combine:
-```bash
-./start.sh --clean --grant-acl
-```
+* Run from the same shell where `echo $DISPLAY` prints `localhost:N.0`
+* Avoid plain `sudo`; if needed use `sudo -E ./start.sh` to preserve `DISPLAY` and `XAUTHORITY`
 
 ---
 
-## 🔍 Permission Verification
-The container runs `verify_fs.sh` on startup:
-- **RO** mounts → Write should fail
-- **RW** mounts → Write/read/delete should succeed
-- **Exec** check → Scripts in exec-enabled tmpfs should run
-- Fails fast if any check doesn't match expectations
+## 🔍 What happens on start
+
+1. `start.sh` parses bind lists, sets up X11, passes your `DISPLAY`
+2. `verify_fs.sh` confirms RO cannot be written, RW can be written, and an exec tmpfs works
+3. `run_cursor.sh` starts a session D-Bus and launches the AppImage with software GL
 
 Example output:
+
 ```
-== FS verify: RO must fail to write, RW must succeed; exec must succeed ==
-RO check: /mnt/share ... OK (write blocked)
-RO check: /home/ilia/cursor ... OK (write blocked)
-RW check: /mnt/share/ilia ... OK (write succeeded)
-Exec check: /tmpfs_exec ... OK (script executed)
+== FS verify ==
+-- RO checks --
+RO: /appimage ... OK
+-- RW checks --
+RW: /home/you/monitor_cursor ... OK
+-- EXEC check -- OK
+Launching Cursor AppImage with system+session D-Bus and software GL...
 ```
 
 ---
 
 ## 🧹 Cleanup
-This setup uses `--rm` in `docker run`, so the container is removed on exit.  
-Persistent files remain in `${PERSIST_BASE}`.
 
-To completely remove state:
+Containers run with `--rm` and are removed on exit.
+To erase persisted state:
+
 ```bash
 rm -rf "${PERSIST_BASE}"
 ```
 
 ---
 
-## 📌 Notes
-- Requires Docker on host with X11 access (`xhost +local:docker` is run automatically when `USE_X11=1`)
-- Host RW dirs must allow the container UID to write; use `--grant-acl` or adjust permissions manually
-- You can easily change the AppImage path in `config.sh` without touching any other script
-- Works with **software rendering**, no GPU passthrough required
+## 🔧 Troubleshooting
+
+**X11 connection rejected, or platform failed to initialize**
+Ensure `DISPLAY=localhost:N.0` and run from the same SSH session. Avoid plain `sudo`; use `sudo -E`.
+
+**On NFS, RW path says permission denied**
+Use `./start.sh --as-owner --userns-host` so the kernel sees the same uid,gid as on the host.
+
+**Firefox shows “profile cannot be loaded”**
+`.mozilla` is persisted and mounted. After `--clean`, the first run recreates it. If an old unreadable profile exists, remove `${PERSIST_BASE}/mozilla`.
+
+**Corporate proxy blocks login or re‑signs TLS**
+Export your proxy on the host so Firefox inside inherits it:
+
+```bash
+export HTTPS_PROXY=http://proxy.example.com:3128
+export HTTP_PROXY=http://proxy.example.com:3128
+export NO_PROXY=localhost,127.0.0.1,::1
+./start.sh --as-owner --userns-host
+```
+
+If TLS interception errors appear, place your corporate root CA PEM into `${PERSIST_BASE}/certs` and follow certificate import notes in `entry.sh`.
+
+**Firefox prints `glxtest: libpci missing`**
+Benign with software GL; the Dockerfile installs `libpci3` and `libpciaccess0` to silence it.
 
 ---
 
-**Tagline:**  
-> Run Cursor in a secure, configurable Docker sandbox with controlled filesystem access and minimal host exposure.
+## 📌 Notes
+
+* Software rendering only, no GPU passthrough required
+* Firefox is installed and registered as default browser, `xdg-open` uses it
+* X11 over SSH requires valid `DISPLAY` and `XAUTHORITY` in your shell
+
+---
+
+**Tagline**
+Run Cursor in a secure, configurable Docker sandbox, controlled filesystem access, predictable auth and rendering paths.
 
