@@ -22,7 +22,7 @@ done
 
 if [[ "$DO_CLEAN" -eq 1 ]]; then
   echo "Cleaning persisted state at ${PERSIST_BASE} ..."
-  for d in cursor config cache mozilla; do
+  for d in cursor config cache mozilla local; do
     [ -d "${PERSIST_BASE}/${d}" ] || continue
     ts=$(date +%Y%m%d-%H%M%S)
     mv "${PERSIST_BASE}/${d}" "${PERSIST_BASE}/${d}.bak-${ts}"
@@ -30,7 +30,11 @@ if [[ "$DO_CLEAN" -eq 1 ]]; then
   done
 fi
 
-mkdir -p "${PERSIST_BASE}/config" "${PERSIST_BASE}/cache" "${PERSIST_BASE}/cursor"
+mkdir -p "${PERSIST_BASE}/config"
+mkdir -p "${PERSIST_BASE}/cache"
+mkdir -p "${PERSIST_BASE}/cursor"
+mkdir -p "${PERSIST_BASE}/mozilla"
+mkdir -p "${PERSIST_BASE}/local"
 
 if [[ "$DO_GRANT_ACL" -eq 1 ]]; then
   if ! command -v setfacl >/dev/null 2>&1; then
@@ -137,11 +141,12 @@ if [[ -n "${ENV_XAUTH+set}" ]]; then
 fi
 
 # Persisted dirs
-mkdir -p "${PERSIST_BASE}/mozilla"
 VOLUMES+=( "--volume" "${PERSIST_BASE}/cursor:/home/cursoruser/.cursor:rw" )
 VOLUMES+=( "--volume" "${PERSIST_BASE}/config:/home/cursoruser/.config:rw" )
 VOLUMES+=( "--volume" "${PERSIST_BASE}/cache:/home/cursoruser/.cache:rw" )
 VOLUMES+=( "--volume" "${PERSIST_BASE}/mozilla:/home/cursoruser/.mozilla:rw" )
+VOLUMES+=( "--volume" "${PERSIST_BASE}/local:/home/cursoruser/.local:rw" )
+
 
 
 

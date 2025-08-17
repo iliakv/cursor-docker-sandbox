@@ -35,6 +35,31 @@ RUN add-apt-repository -y ppa:mozillateam/ppa \
   && update-alternatives --install /usr/bin/x-www-browser x-www-browser /usr/bin/firefox 200 \
   && update-alternatives --install /usr/bin/gnome-www-browser gnome-www-browser /usr/bin/firefox 200 \
   && rm -rf /var/lib/apt/lists/*
+  
+# 5b) Python 3.10 toolchain for per-project venvs
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      python3 python3-venv python3-pip python3-dev \
+      build-essential pkg-config git \
+      libffi-dev libssl-dev \
+      # common wheels that sometimes compile
+      libxml2-dev libxslt1-dev zlib1g-dev \
+      libjpeg-turbo8-dev libpng-dev \
+      libpq-dev default-libmysqlclient-dev \
+  && rm -rf /var/lib/apt/lists/*
+
+# Make 'python' and 'pip' unambiguous
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 2 \
+ && update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 2
+
+# Optional, pipx for isolated CLI tools; installs under the runtime user later
+RUN apt-get update && apt-get install -y --no-install-recommends pipx && rm -rf /var/lib/apt/lists/*
+
+# Pip defaults, cache enabled and persisted via ~/.cache
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=0 \
+    PIP_DEFAULT_TIMEOUT=60 \
+    PATH=/home/cursoruser/.local/bin:$PATH
+
 
 # 6) AppImage / FUSE + fuse-overlayfs (needs 'universe')
 RUN apt-get update && apt-get install -y --no-install-recommends \
