@@ -13,15 +13,15 @@ fi
 
 # Always include internal expected RW dirs as well
 EXTRA_RW="
-/home/cursoruser/writable
-/home/cursoruser/.cursor
-/home/cursoruser/.config
-/home/cursoruser/.cache
-/home/cursoruser/.mozilla
+/home/xuser/writable
+/home/xuser/.cursor
+/home/xuser/.config
+/home/xuser/.cache
+/home/xuser/.mozilla
 "
 
 STAMP="perm_test_$$"
-EXEC_TEST="/home/cursoruser/writable/perm_exec_${STAMP}.sh"
+EXEC_TEST="/home/xuser/writable/perm_exec_${STAMP}.sh"
 
 echo "-- RO checks --"
 while IFS= read -r d; do

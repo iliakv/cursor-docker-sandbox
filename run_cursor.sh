@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Verify mounts and permissions
-/home/cursoruser/verify_fs.sh
+/home/xuser/verify_fs.sh
 
 echo "Launching Cursor AppImage with system+session D-Bus and software GL..."
 
@@ -23,7 +23,7 @@ export ANGLE_DEFAULT_PLATFORM=swiftshader
 export LIBGL_DEBUG=quiet
 export MESA_DEBUG=silent
 
-WRITABLE_DIR="/home/cursoruser/writable"
+WRITABLE_DIR="/home/xuser/writable"
 mkdir -p "${WRITABLE_DIR}"
 
 # Resolve AppImage path from env

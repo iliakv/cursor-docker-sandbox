@@ -1,0 +1,61 @@
+# =========================================
+# Core utilities and runtime helpers
+# =========================================
+beartype
+decorator
+defusedxml
+dogpile.cache
+einops
+entrypoints
+filelock
+psutil
+sortedcontainers
+tabulate
+tornado
+tqdm
+
+# =========================================
+# Numerical and data stack
+# =========================================
+Cython
+h5py
+numpy
+pandas
+scipy
+xlrd
+
+# =========================================
+# Machine learning and modeling
+# =========================================
+catboost
+lightgbm
+scikit-learn
+torch
+torch-optimizer
+torchvision
+xgboost
+openturns
+
+# =========================================
+# Databases and IO
+# =========================================
+lxml
+psycopg2-binary
+
+# =========================================
+# Calendars, markets, and schedules
+# =========================================
+exchange_calendars
+holidays
+polygon-api-client
+
+# =========================================
+# Source-allowed section
+# Packages that may lack universal wheels.
+# If you still want wheels-only, install others first,
+# then install these without --only-binary.
+# =========================================
+bs4
+interval
+prodict
+py_vollib

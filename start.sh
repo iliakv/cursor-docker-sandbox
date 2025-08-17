@@ -128,8 +128,8 @@ fi
 # Env
 ENV_ARGS=(
   "--env" "DISPLAY=${DISPLAY_VAL}"
-  "--env" "XDG_CONFIG_HOME=/home/cursoruser/.config"
-  "--env" "XDG_CACHE_HOME=/home/cursoruser/.cache"
+  "--env" "XDG_CONFIG_HOME=/home/xuser/.config"
+  "--env" "XDG_CACHE_HOME=/home/xuser/.cache"
   "--env" "APPIMAGE_CONTAINER_DIR=${APPIMAGE_CONTAINER_DIR}"
   "--env" "APPIMAGE_FILENAME=${APPIMAGE_FILENAME}"
   "--env" "TARGET_UID=${TARGET_UID}"
@@ -141,11 +141,11 @@ if [[ -n "${ENV_XAUTH+set}" ]]; then
 fi
 
 # Persisted dirs
-VOLUMES+=( "--volume" "${PERSIST_BASE}/cursor:/home/cursoruser/.cursor:rw" )
-VOLUMES+=( "--volume" "${PERSIST_BASE}/config:/home/cursoruser/.config:rw" )
-VOLUMES+=( "--volume" "${PERSIST_BASE}/cache:/home/cursoruser/.cache:rw" )
-VOLUMES+=( "--volume" "${PERSIST_BASE}/mozilla:/home/cursoruser/.mozilla:rw" )
-VOLUMES+=( "--volume" "${PERSIST_BASE}/local:/home/cursoruser/.local:rw" )
+VOLUMES+=( "--volume" "${PERSIST_BASE}/cursor:/home/xuser/.cursor:rw" )
+VOLUMES+=( "--volume" "${PERSIST_BASE}/config:/home/xuser/.config:rw" )
+VOLUMES+=( "--volume" "${PERSIST_BASE}/cache:/home/xuser/.cache:rw" )
+VOLUMES+=( "--volume" "${PERSIST_BASE}/mozilla:/home/xuser/.mozilla:rw" )
+VOLUMES+=( "--volume" "${PERSIST_BASE}/local:/home/xuser/.local:rw" )
 
 
 
@@ -168,7 +168,7 @@ docker run --rm -it \
   --security-opt apparmor:unconfined \
   --shm-size="${SHM_SIZE}" \
   --net=host \
-  --tmpfs "/home/cursoruser/writable:exec,uid=${TARGET_UID},gid=${TARGET_GID}" \
+  --tmpfs "/home/xuser/writable:exec,uid=${TARGET_UID},gid=${TARGET_GID}" \
   --tmpfs "/run:uid=0,gid=0,mode=755" \
   "${ENV_ARGS[@]}" \
   "${VOLUMES[@]}" \
