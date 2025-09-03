@@ -41,7 +41,7 @@ Edit **`config.sh`** and review:
 * `RO_BINDS` list of `host->container` read only paths
 * `RW_BINDS` list of `host->container` read write paths
 * `PERSIST_BASE` for `.config`, `.cache`, `.cursor`, `.mozilla`
-* `CONTAINER_UID`, `CONTAINER_GID` default `1000,1000`
+* User identity is now dynamically determined from the host user (no more hardcoded UID/GID)
 * `USE_X11` set to `1` to enable X11
 * `SHM_SIZE` default `1g`
 

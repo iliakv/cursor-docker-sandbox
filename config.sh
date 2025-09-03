@@ -32,9 +32,8 @@ ${BASE_HOME}/monitor_cursor->${BASE_HOME}/monitor_cursor
 # Persistent state base dir on host for config, cache, extensions
 PERSIST_BASE="${HOST_HOME}/.docker-cursor"
 
-# Container user identity
-CONTAINER_UID=1000
-CONTAINER_GID=1000
+# Container user identity (will be set dynamically to match host user)
+# CONTAINER_UID and CONTAINER_GID are now determined at runtime
 
 # X11 usage
 USE_X11=1

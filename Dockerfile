@@ -6,7 +6,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_NO_CACHE_DIR=0 PIP_DEFAULT_TIMEOUT=60
 ENV PIP_CACHE_DIR=/opt/pip-cache
-ENV PATH=/home/xuser/.local/bin:$PATH
+ENV PATH=/home/workspace/.local/bin:$PATH
 ENV BROWSER=/usr/bin/firefox
 ENV PORT=8000
 
@@ -117,39 +117,50 @@ RUN pip install --no-cache-dir --only-binary :all: \
       uvicorn[standard] watchfiles
 
 # -------------------------------------------------------------------
+# Node.js 20.x installation
+# -------------------------------------------------------------------
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+ && apt-get install -y nodejs \
+ && npm install -g npm@latest
+
+# -------------------------------------------------------------------
 # Python packages, source-allowed pass
 # -------------------------------------------------------------------
 RUN pip install --no-cache-dir \
       prodict interval bs4 py_vollib
 
 # -------------------------------------------------------------------
-# Unprivileged user and workspace
+# SSH client for agent forwarding (added last for faster rebuilds)
 # -------------------------------------------------------------------
-RUN useradd -m -u 1000 -s /bin/bash xuser
-WORKDIR /home/xuser
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends openssh-client \
+ && rm -rf /var/lib/apt/lists/*
 
 # -------------------------------------------------------------------
-# Passwordless sudo for xuser
+# User workspace (user will be created at runtime with actual username)
 # -------------------------------------------------------------------
-RUN usermod -aG sudo xuser \
- && printf 'xuser ALL=(ALL) NOPASSWD:ALL\n' > /etc/sudoers.d/010-xuser-nopasswd \
- && chown root:root /etc/sudoers.d/010-xuser-nopasswd \
- && chmod 0440 /etc/sudoers.d/010-xuser-nopasswd \
- && visudo -cf /etc/sudoers
+RUN mkdir -p /home/workspace
+WORKDIR /home/workspace
+
+# -------------------------------------------------------------------
+# Passwordless sudo configuration (will be set up dynamically at runtime)
+# -------------------------------------------------------------------
 # -------------------------------------------------------------------
 # App scripts
 # -------------------------------------------------------------------
 COPY entry.sh /entry.sh
-COPY verify_fs.sh /home/xuser/verify_fs.sh
-COPY run_cursor.sh /home/xuser/run_cursor.sh
-RUN chmod +x /entry.sh /home/xuser/verify_fs.sh /home/xuser/run_cursor.sh \
- && chmod a+rx /home/xuser /home/xuser/run_cursor.sh \
- && chown -R 1000:1000 /home/xuser
+COPY verify_fs.sh /home/workspace/verify_fs.sh
+COPY run_cursor.sh /home/workspace/run_cursor.sh
+RUN chmod +x /entry.sh /home/workspace/verify_fs.sh /home/workspace/run_cursor.sh \
+ && chmod a+rx /home/workspace /home/workspace/run_cursor.sh \
+ && chmod 1777 /home/workspace
 
 # -------------------------------------------------------------------
-# Port metadata, Uvicorn listens on 0.0.0.0:$PORT, you run with --net=host
+# Port metadata, expose both Cursor IDE and VeloQuant Trading Monitor ports
 # -------------------------------------------------------------------
 EXPOSE 8000
+EXPOSE 8001
+EXPOSE 3000
 
 ENTRYPOINT ["/entry.sh"]
 

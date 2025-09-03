@@ -5,6 +5,9 @@ RO_LIST="/etc/cursor-ro.list"
 RW_LIST="/etc/cursor-rw.list"
 
 echo "== FS verify =="
+echo "HOME is set to: ${HOME:-'NOT SET'}"
+echo "Current user: $(whoami)"
+echo "Current working directory: $(pwd)"
 
 if [[ ! -f "$RO_LIST" || ! -f "$RW_LIST" ]]; then
   echo "ERROR: verify lists not found: $RO_LIST $RW_LIST"
@@ -13,15 +16,15 @@ fi
 
 # Always include internal expected RW dirs as well
 EXTRA_RW="
-/home/xuser/writable
-/home/xuser/.cursor
-/home/xuser/.config
-/home/xuser/.cache
-/home/xuser/.mozilla
+${HOME}/writable
+${HOME}/.cursor
+${HOME}/.config
+${HOME}/.cache
+${HOME}/.mozilla
 "
 
 STAMP="perm_test_$$"
-EXEC_TEST="/home/xuser/writable/perm_exec_${STAMP}.sh"
+EXEC_TEST="${HOME}/writable/perm_exec_${STAMP}.sh"
 
 echo "-- RO checks --"
 while IFS= read -r d; do

@@ -22,7 +22,7 @@ done
 
 if [[ "$DO_CLEAN" -eq 1 ]]; then
   echo "Cleaning persisted state at ${PERSIST_BASE} ..."
-  for d in cursor config cache mozilla local; do
+  for d in cursor config cache mozilla local npm node-gyp; do
     [ -d "${PERSIST_BASE}/${d}" ] || continue
     ts=$(date +%Y%m%d-%H%M%S)
     mv "${PERSIST_BASE}/${d}" "${PERSIST_BASE}/${d}.bak-${ts}"
@@ -35,6 +35,8 @@ mkdir -p "${PERSIST_BASE}/cache"
 mkdir -p "${PERSIST_BASE}/cursor"
 mkdir -p "${PERSIST_BASE}/mozilla"
 mkdir -p "${PERSIST_BASE}/local"
+mkdir -p "${PERSIST_BASE}/npm"
+mkdir -p "${PERSIST_BASE}/node-gyp"
 
 if [[ "$DO_GRANT_ACL" -eq 1 ]]; then
   if ! command -v setfacl >/dev/null 2>&1; then
@@ -70,15 +72,26 @@ while IFS= read -r line; do
   printf '%s\n' "${cont}" >> "${RW_LIST}"
   RW_HOSTS+=( "${host}" )
   if [[ "$DO_GRANT_ACL" -eq 1 ]]; then
-    echo "Granting ACL rwx to uid:${CONTAINER_UID} on ${host} ..."
-    sudo setfacl -m u:${CONTAINER_UID}:rwx "${host}" || echo "ACL grant failed on ${host} (FS may not support ACLs)"
-    sudo setfacl -d -m u:${CONTAINER_UID}:rwx "${host}" || true
+    echo "Granting ACL rwx to uid:${TARGET_UID} on ${host} ..."
+    sudo setfacl -m u:${TARGET_UID}:rwx "${host}" || echo "ACL grant failed on ${host} (FS may not support ACLs)"
+    sudo setfacl -d -m u:${TARGET_UID}:rwx "${host}" || true
   fi
 done <<< "${RW_BINDS}"
 
-# Runtime identity
-TARGET_UID="${CONTAINER_UID}"
-TARGET_GID="${CONTAINER_GID}"
+# Runtime identity - default to current user's UID/GID
+CURRENT_UID=$(id -u)
+CURRENT_GID=$(id -g)
+CURRENT_USERNAME=$(id -un)
+TARGET_UID="${CURRENT_UID}"
+TARGET_GID="${CURRENT_GID}"
+
+# Validate current user
+if [[ -z "$CURRENT_UID" || -z "$CURRENT_GID" ]]; then
+  echo "ERROR: Could not determine current user UID/GID"
+  exit 1
+fi
+
+# Override with --as-owner if specified
 if [[ "$DO_AS_OWNER" -eq 1 ]]; then
   if [[ "${#RW_HOSTS[@]}" -eq 0 ]]; then
     echo "--as-owner requires at least one RW bind in config.sh"
@@ -92,6 +105,8 @@ if [[ "$DO_AS_OWNER" -eq 1 ]]; then
   TARGET_UID=$(stat -c %u "$REF")
   TARGET_GID=$(stat -c %g "$REF")
   echo "Running container as owner of ${REF}: uid=${TARGET_UID} gid=${TARGET_GID}"
+else
+  echo "Running container as current user (${CURRENT_USERNAME}): uid=${TARGET_UID} gid=${TARGET_GID}"
 fi
 
 # X11 handling
@@ -128,24 +143,51 @@ fi
 # Env
 ENV_ARGS=(
   "--env" "DISPLAY=${DISPLAY_VAL}"
-  "--env" "XDG_CONFIG_HOME=/home/xuser/.config"
-  "--env" "XDG_CACHE_HOME=/home/xuser/.cache"
+  "--env" "XDG_CONFIG_HOME=/home/${CURRENT_USERNAME}/.config"
+  "--env" "XDG_CACHE_HOME=/home/${CURRENT_USERNAME}/.cache"
   "--env" "APPIMAGE_CONTAINER_DIR=${APPIMAGE_CONTAINER_DIR}"
   "--env" "APPIMAGE_FILENAME=${APPIMAGE_FILENAME}"
   "--env" "TARGET_UID=${TARGET_UID}"
   "--env" "TARGET_GID=${TARGET_GID}"
+  "--env" "HOST_USER=${CURRENT_USERNAME}"
 )
 # Add XAUTH env if set
 if [[ -n "${ENV_XAUTH+set}" ]]; then
   ENV_ARGS+=( "${ENV_XAUTH[@]}" )
 fi
 
+# SSH Agent detection and forwarding
+SSH_AUTH_SOCK="${SSH_AUTH_SOCK:-}"
+SSH_AGENT_PID="${SSH_AGENT_PID:-}"
+
+if [[ -n "$SSH_AUTH_SOCK" && -S "$SSH_AUTH_SOCK" ]]; then
+  echo "🔑 SSH Agent detected: $SSH_AUTH_SOCK"
+  ENV_ARGS+=("--env" "SSH_AUTH_SOCK=$SSH_AUTH_SOCK")
+  ENV_ARGS+=("--env" "SSH_AGENT_PID=$SSH_AGENT_PID")
+  ENV_ARGS+=("--env" "HOST_USER=$CURRENT_USER")
+  # Mount SSH agent socket
+  VOLUMES+=("--volume" "$SSH_AUTH_SOCK:$SSH_AUTH_SOCK:ro")
+else
+  echo "⚠️  No SSH Agent detected. Starting SSH agent..."
+  # Start SSH agent and load default key
+  eval "$(ssh-agent -s)"
+  ssh-add ~/.ssh/id_rsa 2>/dev/null || echo "No default key found"
+  ENV_ARGS+=("--env" "SSH_AUTH_SOCK=$SSH_AUTH_SOCK")
+  ENV_ARGS+=("--env" "SSH_AGENT_PID=$SSH_AGENT_PID")
+  ENV_ARGS+=("--env" "HOST_USER=$CURRENT_USER")
+  VOLUMES+=("--volume" "$SSH_AUTH_SOCK:$SSH_AUTH_SOCK:ro")
+fi
+
 # Persisted dirs
-VOLUMES+=( "--volume" "${PERSIST_BASE}/cursor:/home/xuser/.cursor:rw" )
-VOLUMES+=( "--volume" "${PERSIST_BASE}/config:/home/xuser/.config:rw" )
-VOLUMES+=( "--volume" "${PERSIST_BASE}/cache:/home/xuser/.cache:rw" )
-VOLUMES+=( "--volume" "${PERSIST_BASE}/mozilla:/home/xuser/.mozilla:rw" )
-VOLUMES+=( "--volume" "${PERSIST_BASE}/local:/home/xuser/.local:rw" )
+VOLUMES+=( "--volume" "${PERSIST_BASE}/cursor:/home/${CURRENT_USERNAME}/.cursor:rw" )
+VOLUMES+=( "--volume" "${PERSIST_BASE}/config:/home/${CURRENT_USERNAME}/.config:rw" )
+VOLUMES+=( "--volume" "${PERSIST_BASE}/cache:/home/${CURRENT_USERNAME}/.cache:rw" )
+VOLUMES+=( "--volume" "${PERSIST_BASE}/mozilla:/home/${CURRENT_USERNAME}/.mozilla:rw" )
+VOLUMES+=( "--volume" "${PERSIST_BASE}/local:/home/${CURRENT_USERNAME}/.local:rw" )
+
+# npm and Node.js cache directories for React development
+VOLUMES+=( "--volume" "${PERSIST_BASE}/npm:/home/${CURRENT_USERNAME}/.npm:rw" )
+VOLUMES+=( "--volume" "${PERSIST_BASE}/node-gyp:/home/${CURRENT_USERNAME}/.node-gyp:rw" )
 
 
 
@@ -168,7 +210,7 @@ docker run --rm -it \
   --security-opt apparmor:unconfined \
   --shm-size="${SHM_SIZE}" \
   --net=host \
-  --tmpfs "/home/xuser/writable:exec,uid=${TARGET_UID},gid=${TARGET_GID}" \
+  --tmpfs "/home/${CURRENT_USERNAME}/writable:exec,uid=${TARGET_UID},gid=${TARGET_GID}" \
   --tmpfs "/run:uid=0,gid=0,mode=755" \
   "${ENV_ARGS[@]}" \
   "${VOLUMES[@]}" \

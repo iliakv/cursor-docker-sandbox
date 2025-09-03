@@ -13,6 +13,8 @@ sortedcontainers
 tabulate
 tornado
 tqdm
+watchdog
+requests
 
 # =========================================
 # Numerical and data stack

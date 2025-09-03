@@ -1,10 +1,14 @@
 #!/bin/bash
 set -euo pipefail
 
+# Ensure HOME is set (fallback to /home/$(whoami) if not set)
+export HOME="${HOME:-/home/$(whoami)}"
+
 # Verify mounts and permissions
-/home/xuser/verify_fs.sh
+"${HOME}/verify_fs.sh"
 
 echo "Launching Cursor AppImage with system+session D-Bus and software GL..."
+echo "Current user: $(whoami) (uid=$(id -u), gid=$(id -g))"
 
 # Private session D-Bus
 SESSION_BUS="/tmp/dbus-session.sock"
@@ -23,7 +27,7 @@ export ANGLE_DEFAULT_PLATFORM=swiftshader
 export LIBGL_DEBUG=quiet
 export MESA_DEBUG=silent
 
-WRITABLE_DIR="/home/xuser/writable"
+WRITABLE_DIR="${HOME}/writable"
 mkdir -p "${WRITABLE_DIR}"
 
 # Resolve AppImage path from env
